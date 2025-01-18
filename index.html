@@ -41,19 +41,48 @@
         async function downloadJSON(input) {
             try {
                 const query = encodeURIComponent(`
-                    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX xskos: <http://rdf-vocabulary.ddialliance.org/xkos#>
 
 select ?code ?label ?def ?inclusionTerm ?inclusionNote where {
-        ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
-        ?cim10_uri skos:notation ?code.
-        ?cim10_uri rdfs:label ?label.
-        OPTIONAL{
+    {
+        select * where {
+            ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
+           ?cim10_uri skos:notation ?code.
+            ?cim10_uri rdfs:label ?label.
+            OPTIONAL{
                 ?cim10_uri skos:definition ?def.
                 ?cim10_uri skos:altLabel ?inclusionTerm.
                 ?cim10_uri xskos:inclusionNote ?inclusionNote.
+                }
+            }
+    }
+    UNION {
+        select * where {
+            ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
+            ?cim10_uri skos:notation ?code.
+            ?cim10_uri rdfs:label ?label.
+            ?cim10_uri skos:altLabel ?inclusionTerm.
+            OPTIONAL{
+                ?cim10_uri skos:definition ?def.
+                ?cim10_uri xskos:inclusionNote ?inclusionNote.
+                }
+            }
+    }
+    UNION {
+        select * where {
+            ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
+            ?cim10_uri skos:notation ?code.
+            ?cim10_uri rdfs:label ?label.
+            ?cim10_uri xskos:inclusionNote ?inclusionNote.
+            OPTIONAL{
+                ?cim10_uri skos:definition ?def.
+                ?cim10_uri skos:altLabel ?inclusionTerm.
+                }
+            }
     }
     VALUES ?input { "${input}" }
     FILTER (

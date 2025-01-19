@@ -47,7 +47,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX xskos: <http://rdf-vocabulary.ddialliance.org/xkos#>
 
-select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARATOR=",\n ") AS ?inclusionTerm) where {
+select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARATOR=", ") AS ?inclusionTerm) where {
     {
         select * where {
             ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
@@ -113,9 +113,8 @@ select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARAT
                     const item = data["results"]["bindings"][i];
                     const code = item["code"]["value"];
                     const label = item["label"]["value"];
-                    const def = item["def"] ? item["def"]["value"] : "No definition available.";
-                    const altLabel = item["inclusionTerm"] ? item["inclusionTerm"]["value"] : "No alternative label available.";
-                    const inclusionNote = item["inclusionNote"] ? item["inclusionNote"]["value"] : "No inclusion note available.";
+                    const def = item["def"] ? item["def"]["value"] : "";
+                    const altLabel = item["inclusionTerm"] ? item["inclusionTerm"]["value"] : "";
 
                     const li = document.createElement('li');
                     li.className = 'list-group-item';
@@ -136,11 +135,6 @@ select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARAT
                     altLabelItem.innerHTML = `<span>Alternative label:</span> ${altLabel}`;
                     altLabelItem.classList.add('sub-item');
                     li.appendChild(altLabelItem);
-
-                    const inclusionNoteItem = document.createElement('div');
-                    inclusionNoteItem.innerHTML = `<span>Inclusion note:</span> ${inclusionNote}`;
-                    inclusionNoteItem.classList.add('sub-item');
-                    li.appendChild(inclusionNoteItem);
 
                     ul.appendChild(li);
                 }

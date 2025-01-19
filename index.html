@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Salut</title>
+    <title>ICD-10 Explorer</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         .list-group-item {
@@ -16,13 +16,36 @@
         }
 
         .sub-item {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
             margin-left: 20px;
             color: #6c757d;
-            display: none; /* Initially hidden */
+        }
+
+        .list-group-item.expanded .sub-item {
+            max-height: 200px; /* Adjust based on expected content */
+            opacity: 1;
         }
 
         .sub-item span {
             font-weight: bold;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        @media (max-width: 576px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .btn {
+                font-size: 0.9rem;
+            }
         }
     </style>
 </head>
@@ -35,49 +58,54 @@
             <button id="run" class="btn btn-primary">Search</button>
         </div>
     </div>
+    <div id="loading" class="text-center my-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
     <ul id="items" class="list-group"></ul>
 
     <script>
         async function downloadJSON(input) {
             try {
+                const sanitizedInput = input.replace(/[^a-zA-Z0-9\s]/g, ''); // Basic sanitization
                 const query = encodeURIComponent(`
-PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX xskos: <http://rdf-vocabulary.ddialliance.org/xkos#>
 
-select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARATOR=", ") AS ?inclusionTerm) where {
+SELECT DISTINCT ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARATOR=", ") AS ?inclusionTerm) WHERE {
     {
-        select * where {
+        SELECT * WHERE {
             ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
-           ?cim10_uri skos:notation ?code.
+            ?cim10_uri skos:notation ?code.
             ?cim10_uri rdfs:label ?label.
-            OPTIONAL{
+            OPTIONAL {
                 ?cim10_uri skos:definition ?def.
                 ?cim10_uri skos:altLabel ?inclusionTerm.
                 ?cim10_uri xskos:inclusionNote ?inclusionNote.
-                }
             }
+        }
     }
     UNION {
-        select * where {
+        SELECT * WHERE {
             ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
             ?cim10_uri skos:notation ?code.
             ?cim10_uri rdfs:label ?label.
             ?cim10_uri skos:altLabel ?inclusionTerm.
             ?cim10_uri xskos:inclusionNote ?inclusionNote.
-            OPTIONAL{
+            OPTIONAL {
                 ?cim10_uri skos:definition ?def.
-                }
             }
+        }
     }
-    VALUES ?input { "${input}" }
+    VALUES ?input { "${sanitizedInput}" }
     FILTER (
-    regex(?code, ?input, "i")
-    || regex(?label, ?input, "i")
-    || regex(?inclusionTerm, ?input, "i")
-    || regex(?inclusionNote, ?input, "i")
+        regex(?code, ?input, "i") ||
+        regex(?label, ?input, "i") ||
+        regex(?inclusionTerm, ?input, "i") ||
+        regex(?inclusionNote, ?input, "i")
     )
 } GROUP BY ?code ?label ?def ORDER BY ?code`);
 
@@ -87,61 +115,72 @@ select distinct ?code ?label ?def (GROUP_CONCAT(DISTINCT ?inclusionTerm; SEPARAT
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                const data = await response.json();
-                return data;
+                return await response.json();
             } catch (error) {
                 console.error("Error fetching data:", error);
-                alert("Failed to fetch data. Please try again.");
+                alert("Failed to fetch data. Please try again later.");
+                throw error;
             }
         }
 
         const btn = document.getElementById('run');
+        const inputField = document.getElementById('searchInput');
+        const loadingSpinner = document.getElementById('loading');
+        const resultList = document.getElementById('items');
+
         btn.addEventListener('click', async function() {
-            const input = document.getElementById('searchInput').value.trim();
+            const input = inputField.value.trim();
             if (!input) {
                 alert("Please enter a search term.");
                 return;
             }
 
-            const ul = document.getElementById('items');
-            ul.innerHTML = `<li class="list-group-item">Loading...</li>`;
+            resultList.innerHTML = ""; // Clear previous results
+            loadingSpinner.style.display = 'block';
 
-            const data = await downloadJSON(input);
-            if (data) {
-                ul.innerHTML = ""; // Clear previous results
-                for (let i in data["results"]["bindings"]) {
-                    const item = data["results"]["bindings"][i];
-                    const code = item["code"]["value"];
-                    const label = item["label"]["value"];
-                    const def = item["def"] ? item["def"]["value"] : "";
-                    const altLabel = item["inclusionTerm"] ? item["inclusionTerm"]["value"] : "";
+            try {
+                const data = await downloadJSON(input);
+                loadingSpinner.style.display = 'none';
 
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item';
-                    li.innerHTML = `<strong>${code} - ${label}</strong>`;
-                    li.addEventListener('click', function() {
-                        const subItems = li.querySelectorAll('.sub-item');
-                        subItems.forEach(subItem => {
-                            subItem.style.display = subItem.style.display === 'none' ? 'block' : 'none';
+                if (data && data["results"] && data["results"]["bindings"].length > 0) {
+                    for (const item of data["results"]["bindings"]) {
+                        const code = item["code"] ? item["code"]["value"] : "N/A";
+                        const label = item["label"] ? item["label"]["value"] : "N/A";
+                        const def = item["def"] ? item["def"]["value"] : "";
+                        const altLabel = item["inclusionTerm"] ? item["inclusionTerm"]["value"] : "";
+
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item';
+                        li.innerHTML = `<strong>${code} - ${label}</strong>`;
+
+                        li.addEventListener('click', function () {
+                            li.classList.toggle('expanded');
                         });
-                    });
 
-                    const defItem = document.createElement('div');
-                    defItem.innerHTML = `<span>Definition:</span> ${def}`;
-                    defItem.classList.add('sub-item');
-                    li.appendChild(defItem);
+                        const defItem = document.createElement('div');
+                        defItem.innerHTML = `<span>Definition:</span> ${def}`;
+                        defItem.classList.add('sub-item');
+                        li.appendChild(defItem);
 
-                    const altLabelItem = document.createElement('div');
-                    altLabelItem.innerHTML = `<span>Alternative label:</span> ${altLabel}`;
-                    altLabelItem.classList.add('sub-item');
-                    li.appendChild(altLabelItem);
+                        const altLabelItem = document.createElement('div');
+                        altLabelItem.innerHTML = `<span>Alternative label:</span> ${altLabel}`;
+                        altLabelItem.classList.add('sub-item');
+                        li.appendChild(altLabelItem);
 
-                    ul.appendChild(li);
+                        resultList.appendChild(li);
+                    }
+                } else {
+                    resultList.innerHTML = `<li class="list-group-item">No results found.</li>`;
                 }
+            } catch {
+                loadingSpinner.style.display = 'none';
+            }
+        });
 
-                if (ul.innerHTML === "") {
-                    ul.innerHTML = `<li class="list-group-item">No results found.</li>`;
-                }
+        // Trigger search on Enter key press
+        inputField.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                btn.click();
             }
         });
     </script>

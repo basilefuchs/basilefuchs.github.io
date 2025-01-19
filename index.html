@@ -66,27 +66,16 @@ select distinct ?code ?label ?def ?inclusionNote where {
             ?cim10_uri skos:notation ?code.
             ?cim10_uri rdfs:label ?label.
             ?cim10_uri skos:altLabel ?inclusionTerm.
-            OPTIONAL{
-                ?cim10_uri skos:definition ?def.
-                ?cim10_uri xskos:inclusionNote ?inclusionNote.
-                }
-            }
-    }
-    UNION {
-        select * where {
-            ?cim10_uri rdfs:subClassOf+ <http://data.esante.gouv.fr/atih/cim10>.
-            ?cim10_uri skos:notation ?code.
-            ?cim10_uri rdfs:label ?label.
             ?cim10_uri xskos:inclusionNote ?inclusionNote.
             OPTIONAL{
                 ?cim10_uri skos:definition ?def.
-                ?cim10_uri skos:altLabel ?inclusionTerm.
                 }
             }
     }
     VALUES ?input { "${input}" }
     FILTER (
-    regex(?label, ?input, "i")
+    regex(?code, ?input, "i")
+    || regex(?label, ?input, "i")
     || regex(?inclusionTerm, ?input, "i")
     || regex(?inclusionNote, ?input, "i")
     )
